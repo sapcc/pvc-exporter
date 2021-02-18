@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: block-pvc-scanner
-  namespace: pvc-exporter
+  namespace: kube-monitoring
   labels:
     app: pvc-exporter
     com: block-pvc-scanner
@@ -16,13 +16,14 @@ spec:
       labels:
         com: block-pvc-scanner
         app: pvc-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8848"
+        prometheus.io/targets: "collector-kubernetes"
     spec:
-      tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
       containers:
       - name: block-pvc-scanner
-        image: dockerid31415926/block-pvc-scanner
+        image: keppel.eu-de-1.cloud.sap/ccloud/block-pvc-scanner:7c34a1ef
         ports:
         - containerPort: 8848
           name: metrics
@@ -40,22 +41,3 @@ spec:
       - name: root-path
         hostPath:
           path: /
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: pvc-exporter
-    com: block-pvc-scanner
-  name: block-pvc-scanner
-  namespace: pvc-exporter
-spec:
-  ports:
-  - port: 8848
-    name: metrics
-    protocol: TCP
-    targetPort: 8848
-  selector:
-    app: pvc-exporter
-    com: block-pvc-scanner
-  type: NodePort
