@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: block-pvc-scanner
-        image: keppel.eu-de-1.cloud.sap/ccloud/block-pvc-scanner:ea539759
+        image: keppel.eu-de-1.cloud.sap/ccloud/block-pvc-scanner:87da20c0
         ports:
         - containerPort: 8848
           name: metrics

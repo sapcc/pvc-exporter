@@ -8,7 +8,7 @@ from prometheus_client import start_http_server, Gauge
 
 pvc_usage_metric = Gauge(
     'pvc_usage', 'fetching usge matched by k8s csi',
-    ['persistentvolumeclaim', 'volumename', 'mountedby']
+    ['persistentvolumeclaim', 'volumename', 'mountedby', 'nfsversion']
 )
 
 POOL = {}
@@ -25,6 +25,24 @@ def get_items(obj):
     items = format['items']
     return items
 
+
+def get_nfs_version():
+    result = {}
+    cmd = "mount -v | grep -E 'kubernetes.io~nfs'"
+    with os.popen(cmd) as get_pvc:
+        pvcs = get_pvc.readlines()
+        for pvc in pvcs:
+            pvc_l = pvc.split(' ')
+            volume = pvc_l[2].split('/')[-1].strip()
+            for v in pvc_l[2].split('/'):
+                if re.match("^pvc", v):
+                    volume = v
+            for vers in pvc_l:
+                if 'vers' in vers:
+                    vers = vers.split(',')[2]
+                    nfs_v = vers.split('=')[-1]
+                    result[volume] = nfs_v
+    return result
 
 def get_pvc_usage():
     result = {}
@@ -58,6 +76,7 @@ def get_pvc_mapping():
         field_selector=f"spec.nodeName={node_name}",
     ))
     pvc_usage_percent = get_pvc_usage()
+    pvc_nfs_version = get_pvc_version()
     for p in pods:
         for vc in p['spec']['volumes']:
             if vc['persistent_volume_claim']:
@@ -70,9 +89,9 @@ def get_pvc_mapping():
                     pvc_usage_metric.remove(
                         pvc, POOL[pvc][0], POOL[pvc][1]
                     )
-                pvc_usage_metric.labels(pvc, vol, pod).set(
-                    pvc_usage_percent[vol]
-                )
+                pvc_usage_metric.labels(
+                    pvc, vol, pod, pvc_nfs_version[vol]
+                ).set(pvc_usage_percent[vol])
                 POOL[pvc] = [vol, pod]
 
 
