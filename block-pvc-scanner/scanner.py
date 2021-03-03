@@ -87,12 +87,12 @@ def get_pvc_mapping():
                 pod = p['metadata']['name']
                 if pvc in POOL.keys():
                     pvc_usage_metric.remove(
-                        pvc, POOL[pvc][0], POOL[pvc][1]
+                        pvc, POOL[pvc][0], POOL[pvc][1], POOL[pvc][2]
                     )
                 pvc_usage_metric.labels(
                     pvc, vol, pod, pvc_nfs_version[vol]
                 ).set(pvc_usage_percent[vol])
-                POOL[pvc] = [vol, pod]
+                POOL[pvc] = [vol, pod, pvc_nfs_version[vol]]
 
 
 def main():
