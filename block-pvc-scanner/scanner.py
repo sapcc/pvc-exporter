@@ -76,7 +76,7 @@ def get_pvc_mapping():
         field_selector=f"spec.nodeName={node_name}",
     ))
     pvc_usage_percent = get_pvc_usage()
-    pvc_nfs_version = get_pvc_version()
+    pvc_nfs_version = get_nfs_version()
     for p in pods:
         for vc in p['spec']['volumes']:
             if vc['persistent_volume_claim']:
