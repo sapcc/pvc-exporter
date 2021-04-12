@@ -78,21 +78,22 @@ def get_pvc_mapping():
     pvc_usage_percent = get_pvc_usage()
     pvc_nfs_version = get_nfs_version()
     for p in pods:
-        for vc in p['spec']['volumes']:
-            if vc['persistent_volume_claim']:
-                pvc = vc['persistent_volume_claim']['claim_name']
-                for v in pvcs:
-                    if v['metadata']['name'] == pvc:
-                        vol = v['spec']['volume_name']
-                pod = p['metadata']['name']
-                if pvc in POOL.keys():
-                    pvc_usage_metric.remove(
-                        pvc, POOL[pvc][0], POOL[pvc][1], POOL[pvc][2]
-                    )
-                pvc_usage_metric.labels(
-                    pvc, vol, pod, pvc_nfs_version[vol]
-                ).set(pvc_usage_percent[vol])
-                POOL[pvc] = [vol, pod, pvc_nfs_version[vol]]
+        if p['spec'].get('volumes'):
+            for vc in p['spec']['volumes']:
+                if vc['persistent_volume_claim']:
+                    pvc = vc['persistent_volume_claim']['claim_name']
+                    for v in pvcs:
+                        if v['metadata']['name'] == pvc:
+                            vol = v['spec']['volume_name']
+                    pod = p['metadata']['name']
+                    if pvc in POOL.keys():
+                        pvc_usage_metric.remove(
+                            pvc, POOL[pvc][0], POOL[pvc][1], POOL[pvc][2]
+                        )
+                    pvc_usage_metric.labels(
+                        pvc, vol, pod, pvc_nfs_version[vol]
+                    ).set(pvc_usage_percent[vol])
+                    POOL[pvc] = [vol, pod, pvc_nfs_version[vol]]
 
 
 def main():
