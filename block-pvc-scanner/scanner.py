@@ -17,13 +17,19 @@ METRIC_TIMEOUT = 60 * 5
 start_http_server(8848)
 config.load_incluster_config()
 k8s = client.CoreV1Api()
-CURRENT_POD_NAME = socket.gethostname()
+HOST_NAME = socket.gethostname()
+IP_ADDR = socket.gethostbyname(HOST_NAME)
 
 
 def get_items(obj):
     format = obj.to_dict()
     items = format['items']
     return items
+
+
+def get_pods_by_field_selector(field_selector):
+    return get_items(k8s.list_pod_for_all_namespaces(
+        watch=False, field_selector=field_selector))
 
 
 def get_nfs_version():
@@ -44,6 +50,7 @@ def get_nfs_version():
                     result[volume] = nfs_v
     return result
 
+
 def get_pvc_usage():
     result = {}
     cmd = "df -h|grep -E 'kubernetes.io~nfs'"
@@ -63,24 +70,29 @@ def get_pvc_usage():
 
 
 def get_pvc_mapping():
-    current_pod = get_items(k8s.list_pod_for_all_namespaces(
-        watch=False,
-        field_selector=f"metadata.name={CURRENT_POD_NAME}",
-    ))[0]
+    # Get pod by host name
+    pods = get_pods_by_field_selector(f"metadata.name={HOST_NAME}")
+    if not pods:
+        # Get pod by ip address
+        pods = get_pods_by_field_selector(f"status.podIP={IP_ADDR}")
+    # If there is no pods just return None
+    if not pods:
+        return
+    # Get all PVCs
     pvcs = get_items(
         k8s.list_persistent_volume_claim_for_all_namespaces(
             watch=False))
-    node_name = current_pod['spec']['node_name']
-    pods = get_items(k8s.list_pod_for_all_namespaces(
-        watch=False,
-        field_selector=f"spec.nodeName={node_name}",
-    ))
+    node_name = pods[0]['spec']['node_name']
+    # Get all pods on current node
+    pods = get_pods_by_field_selector(f"spec.nodeName={node_name}")
+    # Get pvc usage on current node
     pvc_usage_percent = get_pvc_usage()
+    # Get nfs versions of each pvc
     pvc_nfs_version = get_nfs_version()
     for p in pods:
         if p['spec'].get('volumes'):
             for vc in p['spec']['volumes']:
-                if vc['persistent_volume_claim']:
+                if vc.get('persistent_volume_claim'):
                     pvc = vc['persistent_volume_claim']['claim_name']
                     for v in pvcs:
                         if v['metadata']['name'] == pvc:
@@ -90,10 +102,11 @@ def get_pvc_mapping():
                         pvc_usage_metric.remove(
                             pvc, POOL[pvc][0], POOL[pvc][1], POOL[pvc][2]
                         )
-                    pvc_usage_metric.labels(
-                        pvc, vol, pod, pvc_nfs_version[vol]
-                    ).set(pvc_usage_percent[vol])
-                    POOL[pvc] = [vol, pod, pvc_nfs_version[vol]]
+                    if pvc_nfs_version.get(vol) and pvc_usage_percent.get(vol):
+                        pvc_usage_metric.labels(
+                            pvc, vol, pod, pvc_nfs_version[vol]
+                        ).set(pvc_usage_percent[vol])
+                        POOL[pvc] = [vol, pod, pvc_nfs_version[vol]]
 
 
 def main():
